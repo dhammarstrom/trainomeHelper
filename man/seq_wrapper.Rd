@@ -10,6 +10,7 @@ seq_wrapper(
   data,
   metadata,
   samplename = "seq_sample_id",
+  additional_vars = NULL,
   summary_fun = NULL,
   eval_fun = NULL,
   exported = list(),
@@ -28,6 +29,8 @@ and design variables.}
 
 \item{samplename}{A character value indicating the variable by which metadata can merge with the target data.
 This defaults to "seq_sample_id" as this is used in the trainomeMetaData package.}
+
+\item{additional_vars}{A vector of additional variables that is contained in the metadata data set that is needed to fit the model. By default the metadata is reduced to variables contained in the slots formula/model/fixed/random in additional arguments. More variables may be needed for offsets, weights etc.}
 
 \item{summary_fun}{A custom (user-created) function for evaluating/summarizing models. If NULL, a list of fitted models are returned}
 

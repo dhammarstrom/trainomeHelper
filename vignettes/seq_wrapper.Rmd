@@ -99,62 +99,99 @@ digraph surveillance_diagram {  # 'digraph' means 'directional graph', then the 
 
 
 ```{r packages}
-library(trainomeHelper); library(tidyverse)
-
-# load sample data 
-data(rna_seq_sample); data(rna_seq_metadata)
-
-
-
-compl_data <- read_csv("ome-data/vol_transcript_rsem.csv") %>%
-  print()
+ library(trainomeHelper); library(tidyverse)
+ 
+ # load sample data 
+ data(rna_seq_sample); data(rna_seq_metadata)
+ 
+ 
+ ## Check the number of cores available
+ parallel::detectCores()
+ 
+ 
+ # 
+ # 
+  fits <- seq_wrapper(    fitting_fun = glmmTMB::glmmTMB,
+                          arguments = list(formula = counts ~ time + time:condition + (1|participant), 
+                                           family = glmmTMB::nbinom2),
+                          data = rna_seq_sample,
+                          metadata = rna_seq_metadata,
+                          samplename = "seq_sample_id",
+                          summary_fun = NULL,
+                          eval_fun = NULL,
+                          additional_vars = NULL,
+                          exported = list(),
+                          subset = NULL,
+                          cores = 8)
   
-
-compl_data <- compl_data %>%
-  mutate_if(is.numeric, round) %>%
-  mutate_if(is.numeric, as.integer) %>%
-  data.frame()
-
-
-
-   
   
-
-tiny_dat <-  compl_data[1:100, ] 
-  
-
-
-
-
-parallel::detectCores()
-
-metadata <- vol_samples
-
-
-head(compl_data)
-
-
-
-fits <- seq_wrapper(fitting_fun = glmmTMB::glmmTMB,
-                        arguments = list(formula = counts ~ time * condition + (1|participant), 
-                                         family = glmmTMB::nbinom2),
-                        data = tiny_dat,
-                        metadata = data.frame(metadata),
-                        samplename = "seq_sample_id",
-                        summary_fun = NULL,
-                        eval_fun = NULL,
-                        exported = list(),
-                        subset = NULL,
-                        cores = 8)
-
-
-
-
-
-
-
 
 ```
+
+### Summary functions
+
+`seq_wrapper` accepts user-defined summary functions.
+
+```{r}
+
+x <- fits$model_fits[[1]]
+
+
+
+sum_fun <- function(x){
+  
+  cond_effects <- data.frame(cbind(data.frame(coef = rownames(coef(summary(x))$cond))),
+                             coef(summary(x))$cond, 
+                                    
+                             row.names = NULL)
+  
+  return(cond_effects)
+  
+}
+
+
+
+  fits <- seq_wrapper(    fitting_fun = lme4::lmer,
+                          arguments = list(formula = counts ~ time + time:condition + (1|participant)),
+                          data = rna_seq_sample,
+                          metadata = rna_seq_metadata,
+                          samplename = "seq_sample_id",
+                          summary_fun = NULL,
+                          eval_fun = NULL,
+                          additional_vars = NULL,
+                          exported = list(),
+                          subset = c(1,34, 67,8,9),
+                          cores = 1)
+
+c(1,34, 67,8,9)
+
+  bind_rows(fits$model_summarises) %>%
+    mutate(target = rep(names(fits$model_summarises), each = 8)) %>%
+    print()
+  
+  
+
+sumaries <- lapply(fits$model_fits, FUN = sum_fun) 
+
+bind_rows(sumaries) %>%
+  mutate(target = rep(names(fits$model_fits), each = 8)) %>%
+  group_by(coef) %>%
+  mutate(fdr = p.adjust(Pr...z.., method = "fdr")) %>%
+  
+  filter(coef == "timew2pre:conditionsingle") %>%
+  arrange(fdr)
+   
+
+  
+  
+  ggplot(aes(Pr...z..)) + geom_histogram() + facet_wrap(~ coef)
+
+```
+
+
+
+
+
 
 
 

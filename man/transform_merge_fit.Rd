@@ -11,6 +11,7 @@ transform_merge_fit(
   samp_name = samplename,
   metdat = metadata,
   arg_list = arguments,
+  add_vars = additional_vars,
   ffun = fitting_fun
 )
 }

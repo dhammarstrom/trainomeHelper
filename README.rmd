@@ -1,0 +1,14 @@
+---
+title: "TrainomeHelper -- README"
+author: "Daniel Hammarström"
+date: "`r Sys.Date()`"
+output: github_document
+---
+
+## Changelog
+
+
+## Functions
+
+### `seq_wrapper`
+

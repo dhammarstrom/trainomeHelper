@@ -98,6 +98,14 @@ seq_wrapper <- function(fitting_fun = glmmTMB::glmmTMB,
                         subset = NULL,
                         cores) {
 
+
+  ## Prepare data #####
+  data <- data.frame(data)
+  metadata <- data.frame(metadata)
+
+  ## Subset
+  if(!is.null(subset)) data <- data[subset,]
+
   ## Sanity checks
 
   # checks if arguments for the provided fitting function matches arguments
@@ -111,12 +119,7 @@ seq_wrapper <- function(fitting_fun = glmmTMB::glmmTMB,
 
 
 
-  ## Prepare data #####
-  data <- data.frame(data)
-  metadata <- data.frame(metadata)
 
-  ## Subset
-  if(!is.null(subset)) data <- data[subset,]
 
 
 
@@ -145,6 +148,7 @@ seq_wrapper <- function(fitting_fun = glmmTMB::glmmTMB,
                                 "arguments",
                                 "fit_fun",
                                 "samplename",
+                                "additional_vars",
                                 "fitting_fun"),
                           envir = environment())
 
