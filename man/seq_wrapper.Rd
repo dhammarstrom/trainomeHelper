@@ -19,7 +19,7 @@ seq_wrapper(
 )
 }
 \arguments{
-\item{arguments}{A list of arguments to be passed to the fitting function, this should not contain data.}
+\item{arguments}{A list of arguments to be passed to the fitting function, this should not contain data. Note that the formula must have y as the dependent variable.}
 
 \item{data}{A data frame with targets (i.e. genes, transcripts) as rows and sample names as colums.
 The first column is assumed to contain target names/identification}

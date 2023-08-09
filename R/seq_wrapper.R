@@ -29,7 +29,7 @@ transform_merge_fit <- function(x,
                                 add_vars = additional_vars,
                                 ffun = fitting_fun) {
 
-  transposed <- data.frame(seq_sample_id = rownames(t(x[,-1])), counts = as.numeric(t(x[,-1])))
+  transposed <- data.frame(seq_sample_id = rownames(t(x[,-1])), y = as.numeric(t(x[,-1])))
 
   colnames(transposed)[1] <- samp_name
 
@@ -70,7 +70,7 @@ for(i in 1:length(arguments_final)) {
 #' A flexible upper-level wrapper for iterative modelling using any available fitting algorithm.
 #'
 #' @param fiting_fun A model fitting function like stats::lm, glmmTMB::glmmTMB, lme4::lmer
-#' @param arguments A list of arguments to be passed to the fitting function, this should not contain data.
+#' @param arguments A list of arguments to be passed to the fitting function, this should not contain data. Note that the formula must have y as the dependent variable.
 #' @param data A data frame with targets (i.e. genes, transcripts) as rows and sample names as colums.
 #' The first column is assumed to contain target names/identification
 #' @param metadata A data frame with sample names (corresponding to column names in the target matrix)

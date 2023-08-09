@@ -1,5 +1,5 @@
 ---
-title: "Flexible iterative fitting over omics-type data using the modelling algorithm of your choice"
+title: "Flexible iterative fitting over omics-type data using the modeling algorithm of your choice"
 output: rmarkdown::html_vignette
 bibliography: references.bib
 author: "Daniel Hammarström"
@@ -94,47 +94,106 @@ digraph surveillance_diagram {  # 'digraph' means 'directional graph', then the 
 ```
 
 
+### Fitting count data to a negative binomial model using `glmmTBM`
+
+
+#### Required packages and sample data
+
+The data set used in this demonstration has 1000 rows with each row representing a target transcript. The first column in the data set has the transcript identifier and remaining columns represents samples (n = 196) from 25 individuals. The design of the study can be seen below in @fig-design.
+
+```{r}
+#| label: packages
+library(trainomeHelper); library(tidyverse); library(glmmTMB); library(parallel)
+
+# load sample data 
+data(rna_seq_sample); data(rna_seq_metadata)
 
 
 
+```
 
-```{r packages}
- library(trainomeHelper); library(tidyverse)
+
+```{r}
+#| label: fig-design
+#| fig-cap: "Available samples from 25 participants in the sample data set. RNA-seq was performed on muscle biopsy samples obtained prior to (w0), after two (w2pre, and w2post), and twelve weeks of resistance training perfomed with multiple and single sets allocated to either leg (condition)."
+#| echo: false
+#| fig-width: 6
+#| fig-height: 8
+
+
+rna_seq_metadata %>%
+  filter(rnaseq_include == "incl") %>%
+  
+  mutate(time = factor(time, levels = c("w0", "w2pre", "w2post", "w12"))) %>%
+  
+  ggplot(aes(participant, time, fill = condition, group = paste(condition, participant))) + 
+  
+  geom_line(position = position_dodge(width = 0.7)) +
+  geom_point(position = position_dodge(width = 0.7),shape = 21) +
+  
+  coord_flip()
+
+
+```
+
+
+The structure of the data set allows for a mixed-effects negative binomial model
+
+$$
+\begin{align*}
+Y_{itc} & \sim \text{NB}(\mu_{itc}, \phi) \\
+\operatorname{log}(\mu_{itc}) & = X_{itc}\beta + Z_{i}b
+\end{align*}
+$$
+
+where $Y_{itc}$ is the counts for participant $i$, at time $t$ and condition $c$. $t$ gives the index for time ($t=1, 2, 3, 4$) and $c$ the index for two conditions ($c=1, 2$). Counts are modeled using the negative binomial distribution with and average $\mu$ and dispersion $\phi$ using a log-link. The design matrix ($X_{itc}$) allows for an interaction between time and condition and the design matrix for the random effects ($Z_i$) allows for a random intercept per participant.
+
+Since we are using a negative binomial model we need to provide integers as input. We will round and convert to integers  
+
+
+Model parameters are estimated for all genes in the data set (`rna_seq_sample`). Model fitting can be performed with parallel computing using multiple cores. First we detect the number of available cores and initiate the process using all available cores. We will use only a subset of transcripts in this demonstration, we can use the subset to make an index to subset the number of targets.
+
+```{r}
+
+# Change all counts to integer
+rna_seq_sample_integer <- rna_seq_sample %>%
+  mutate_at(2:197, ~ as.integer(round(., 0))) %>%
+  print()
+
+
+
+## Check the number of cores available
+ncores <- parallel::detectCores()
+
+## Save a list of arguments used by the fitting algorithm
+args <- list(formula = y ~ time * condition + (1|participant), 
+             family = glmmTMB::nbinom2)
+
  
- # load sample data 
- data(rna_seq_sample); data(rna_seq_metadata)
- 
- 
- ## Check the number of cores available
- parallel::detectCores()
- 
- 
- # 
- # 
-  fits <- seq_wrapper(    fitting_fun = glmmTMB::glmmTMB,
-                          arguments = list(formula = counts ~ time + time:condition + (1|participant), 
-                                           family = glmmTMB::nbinom2),
-                          data = rna_seq_sample,
+fits <- seq_wrapper(    fitting_fun = glmmTMB::glmmTMB,
+                          arguments = args,
+                          data = rna_seq_sample_integer,
                           metadata = rna_seq_metadata,
                           samplename = "seq_sample_id",
                           summary_fun = NULL,
                           eval_fun = NULL,
                           additional_vars = NULL,
                           exported = list(),
-                          subset = NULL,
-                          cores = 8)
+                          subset = 1:10,
+                          cores = ncores)
   
   
 
 ```
 
-### Summary functions
+Since we did not provide a function for `summary_fun` or `eval_fun` the function returns a list of fitted models. `seq_wrapper` accepts user-defined summary functions. To build such a function we can use a single model from our list of fitted models. Note that 
 
-`seq_wrapper` accepts user-defined summary functions.
 
 ```{r}
 
+# A single model is stored for testing our function
 x <- fits$model_fits[[1]]
+
 
 
 
@@ -150,47 +209,119 @@ sum_fun <- function(x){
 }
 
 
+sum_fun(x)
 
-  fits <- seq_wrapper(    fitting_fun = lme4::lmer,
-                          arguments = list(formula = counts ~ time + time:condition + (1|participant)),
-                          data = rna_seq_sample,
+```
+
+The provided function gives us a data frame of coefficients from the fitted model. `seq_wrapper` will create a list of data frames each created with the summary function. For illustrative purposes we will refit models with our summary function. 
+
+```{r}
+
+fits2 <- seq_wrapper(    fitting_fun = glmmTMB::glmmTMB,
+                          arguments = args,
+                          data = rna_seq_sample_integer,
                           metadata = rna_seq_metadata,
                           samplename = "seq_sample_id",
-                          summary_fun = NULL,
+                          summary_fun = sum_fun, ## Our function 
                           eval_fun = NULL,
                           additional_vars = NULL,
                           exported = list(),
-                          subset = c(1,34, 67,8,9),
-                          cores = 1)
+                          subset = 1:100,
+                          cores = ncores)
 
-c(1,34, 67,8,9)
+```
 
-  bind_rows(fits$model_summarises) %>%
-    mutate(target = rep(names(fits$model_summarises), each = 8)) %>%
-    print()
+Note that the summarized models are a named list. To combine the transcript name with the corresponding table of coefficients we can simply replicate the name from the list when combining the data using `bind_rows`. The resulting combined data can be plotted, e.g. as in @fig-vulcano 
+
+```{r}
+#| label: fig-vulcano
+
+
+bind_rows(fits2$model_summarises) %>%
+  mutate(target = rep(names(fits2$model_summarises), each = 8)) %>%
   
   
+  filter(coef != "(Intercept)") %>%
+  ggplot(aes(Estimate, -log(Pr...z..))) + geom_point() + facet_wrap(~ coef)
+ 
+```
 
-sumaries <- lapply(fits$model_fits, FUN = sum_fun) 
+Note that some estimates are quite large (x-axis in @fig-vulcano). This might indicate some difficulties in fitting the model. We might want to make sure the models meet assumptions of the negative binomial model. 
 
-bind_rows(sumaries) %>%
-  mutate(target = rep(names(fits$model_fits), each = 8)) %>%
-  group_by(coef) %>%
-  mutate(fdr = p.adjust(Pr...z.., method = "fdr")) %>%
-  
-  filter(coef == "timew2pre:conditionsingle") %>%
-  arrange(fdr)
-   
+We can add another user specified function that evaluates models. The [`DHARMa` package](https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html) can help to perform residual diagnostics for generalized linear mixed models using simulations. 
 
+
+
+```{r}
+library(DHARMa)
+
+
+eval_mod <- function(x) {
   
+  sim <- DHARMa::simulateResiduals(x, n = 1000)
   
-  ggplot(aes(Pr...z..)) + geom_histogram() + facet_wrap(~ coef)
+  disp <- DHARMa::testDispersion(sim, plot = FALSE)
+  unif <- DHARMa::testUniformity(sim, plot = FALSE)
+  zinfl <- DHARMa::testZeroInflation(sim, plot = FALSE)
+  
+  results <- data.frame(pval.disp = disp$p.value, 
+             pval.unif = unif$p.value, 
+             pval.zinfl = zinfl$p.value)
+  
+  return(results)
+}
+
+
+```
+
+For illustrative purposes we re-fit everything and add the evaluation function to `seq_wrapper`.
+
+
+```{r}
+
+fits3 <- seq_wrapper(    fitting_fun = glmmTMB::glmmTMB,
+                          arguments = args,
+                          data = rna_seq_sample_integer,
+                          metadata = rna_seq_metadata,
+                          samplename = "seq_sample_id",
+                          summary_fun = sum_fun, ## Our function 
+                          eval_fun = eval_mod,
+                          additional_vars = NULL,
+                          exported = list(),
+                          subset = 1:100,
+                          cores = ncores)
 
 ```
 
 
+We can now combine the information provided from the summary and evaluation function.
 
 
+```{r}
+
+
+bind_rows(fits3$model_summarises) %>%
+  mutate(target = rep(names(fits3$model_summarises), each = 8)) %>%
+  
+  inner_join(bind_rows(fits3$model_evaluations) %>%
+            mutate(target = names(fits3$model_evaluations))) %>%
+  
+
+  filter(coef != "(Intercept)", 
+         abs(Estimate) > 10) %>%
+
+  ggplot(aes(Estimate, -log(Pr...z..))) + geom_point(aes(color = pval.zinfl)) + facet_wrap(~ coef)
+
+
+fits3$model_fits$`ENST00000629380.3_SYNGAP1-208`
+
+
+
+
+rna_seq_sample_integer %>%
+  filter(transcript_id == "ENST00000629380.3_SYNGAP1-208")
+
+```
 
 
 
