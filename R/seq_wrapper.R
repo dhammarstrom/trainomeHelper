@@ -4,7 +4,12 @@
 fit_fun <- function(FUN, ARG) {
 
   # Fit the model using the selected machinery and available arguments
-  model <- do.call(FUN, ARG)
+
+  model <- tryCatch(do.call(FUN, ARG),
+           error = function(e) {
+             message("Error in fitting model: ", e)
+             return(NULL)
+           })
 
   # Remove abundant info in the call
   # model$call <- ARG$formula
@@ -28,6 +33,7 @@ transform_merge_fit <- function(x,
                                 arg_list = arguments,
                                 add_vars = additional_vars,
                                 ffun = fitting_fun) {
+
 
   transposed <- data.frame(seq_sample_id = rownames(t(x[,-1])), y = as.numeric(t(x[,-1])))
 
